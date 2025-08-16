@@ -1,0 +1,2 @@
+/usr/bin/ar qc libFL.a CMakeFiles/FL.dir/src/FL/filemanager.c.o CMakeFiles/FL.dir/src/FL/tokenizer.c.o
+/usr/bin/ranlib libFL.a

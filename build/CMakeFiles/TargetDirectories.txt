@@ -1,0 +1,4 @@
+/home/diodoghater/prog/FerroLang/build/CMakeFiles/FL.dir
+/home/diodoghater/prog/FerroLang/build/CMakeFiles/ferro_interpreter.dir
+/home/diodoghater/prog/FerroLang/build/CMakeFiles/edit_cache.dir
+/home/diodoghater/prog/FerroLang/build/CMakeFiles/rebuild_cache.dir
