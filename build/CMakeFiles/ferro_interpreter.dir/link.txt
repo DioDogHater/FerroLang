@@ -1,1 +1,0 @@
-/usr/bin/cc -Wl,--dependency-file=CMakeFiles/ferro_interpreter.dir/link.d CMakeFiles/ferro_interpreter.dir/src/interpreter.c.o -o ferro_interpreter  libFL.a
