@@ -15,5 +15,7 @@ typedef struct{
 
 bool load_file(file_t*);
 void close_file(file_t*);
+bool append_start_file(file_t*,const char*);
+bool append_end_file(file_t*,const char*);
 
 #endif
