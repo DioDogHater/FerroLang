@@ -1,8 +1,10 @@
 #include "tokenizer.h"
+#include "filemanager.h"
+#include <stdlib.h>
+#include <string.h>
 
 // All basic keywords
 static const struct tk_keyword tk_keywords[] = {
-	TK_KW(var),
 	TK_KW(const),
 	TK_KW(constexpr),
 	TK_KW(char),
@@ -23,6 +25,9 @@ static const struct tk_keyword tk_keywords[] = {
 	TK_KW(for),
 	TK_KW(func),
 	TK_KW(ret),
+	TK_KW(or),
+	TK_KW(and),
+	TK_KW(xor),
 	{NULL, tk_invalid}
 };
 
@@ -34,8 +39,12 @@ size_t tk_index = 0;
 // Grows tk_array if needed
 void tk_pushback(token tk){
 	if(tk_array.memsize - tk_array.size < 1){
-		tk_array.memsize = (tk_array.memsize) ? tk_array.memsize*2 : 32;
+		tk_array.memsize = (tk_array.memsize) ? tk_array.memsize+32 : 32;
 		tk_array.tks = realloc(tk_array.tks, tk_array.memsize*sizeof(token));
+		if(!tk_array.tks){
+			printf("failed to allocate %lu bytes for tokens!\n",tk_array.memsize*sizeof(token));
+			exit(EXIT_FAILURE);
+		}
 	}
 	tk_array.tks[tk_array.size++] = tk;
 }
@@ -64,13 +73,13 @@ token* tk_consume(int n){
 }
 
 // Prints the full line of code where the token comes from
-void tk_print_context(token* tk, const char* src){
+void tk_print_context(const char* tk, const char* src){
 	int line_start = 1;
-	for(; tk->str-line_start >= src && *(tk->str-line_start) != '\n'; line_start++);
+	for(; tk-line_start >= src && *(tk-line_start) != '\n'; line_start++);
 	line_start--;
 	int line_end = 1;
-	for(; *(tk->str+line_end) &&  *(tk->str+line_end) != '\n'; line_end++);
-	printf("%.*s\n",line_start+line_end,tk->str-line_start);
+	for(; *(tk+line_end) &&  *(tk+line_end) != '\n'; line_end++);
+	printf("%.*s\n",line_start+line_end,tk-line_start);
 }
 
 // Prints the token in a debugging manner
@@ -86,15 +95,22 @@ bool tk_cmp_str(token* tk, const char* str){
 	return true;
 }
 
+static void tk_error(const char* msg, token* tk, file_t* file){
+	printf("%s:",file->path);
+	puts(msg);
+	tk_print_context(tk->str, file->contents);
+}
+
+#define TOKENIZE_ERR() do{tk_free(); return false;}while(0)
+
 // Tokenizes (classifies words as tokens)
 // the contents of the file passed as arg
 bool tokenize(file_t* file){
 	if(!file->contents)
 		return false;
 	const char* str = file->contents;
-	bool success = true;
 	while(*str){
-		if(isspace(*str) || isblank(*str))
+		if(isspace(*str) || isblank(*str) || !isprint(*str))
 			str++;
 		else if(isalpha(*str) || *str == '_'){
 			token tk = {tk_symbol, 0, str++};
@@ -129,18 +145,16 @@ bool tokenize(file_t* file){
 						tk = (token){tk_char_lit,2,str+1};
 						str += 3;
 					}else{
-						printf("%s: invalid char literal:\n",file->path);
-						tk_print_context(&tk,file->contents);
-						success = false;
+						tk_error("invalid char literal:",&tk,file);
+						TOKENIZE_ERR();
 					}
 					break;
 				case '"':
 					str++;
 					while(*str != '"'){
 						if(!(*str)){
-							printf("%s: invalid string literal:\n",file->path);
-							tk_print_context(&tk,file->contents);
-							success = false;
+							tk_error("invalid string literal:",&tk,file);
+							TOKENIZE_ERR();
 						}
 						str++;
 					}
@@ -206,16 +220,64 @@ bool tokenize(file_t* file){
 				case ']':
 					tk.type = tk_cbracket;
 					break;
+				case '#':
+					tk.str++;
+					if(tk_cmp_str(&tk, "include")){
+						str += 8;
+						while(isspace(*str)){
+							if(*str == '\n'){
+								tk_error("expected include path:",&tk,file);
+								TOKENIZE_ERR();
+							}
+							str++;
+						}
+						if(*str != '"'){
+							tk_error("expected header file path after include:",&tk,file);
+							TOKENIZE_ERR();
+						}
+						tk.str = ++str;
+						while(*str != '"'){
+							if(!(*str) || *str == '\n'){
+								tk_error("expected valid header file path after include:",&tk,file);
+								TOKENIZE_ERR();
+							}
+							str++;
+						}
+						tk.type = tk_include;
+						tk.strlen = str - tk.str;
+						if(str - tk.str > 255){
+							tk_error("header file path is too long (255 character max limit!):",&tk,file);
+							TOKENIZE_ERR();
+						}
+						tk_pushback(tk);
+						char file_path[255];
+						memcpy((void*)file_path,(void*)tk.str,tk.strlen);
+						file_path[tk.strlen] = '\0';
+						file_t include_file = new_file(file_path);
+						if(!load_file(&include_file))
+							TOKENIZE_ERR();
+						append_file_list(include_file);
+						if(!tokenize(&include_file))
+							return false;
+						tk.type = tk_end_include;
+						tk.str = file->path;
+						tk.strlen = strlen(file->path);
+					}else if(tk_cmp_str(&tk, "define")){
+						tk_error("not implemented yet.",&tk,file);
+						TOKENIZE_ERR();
+					}else{
+						tk_error("unknown preprocessor directive:",&tk,file);
+						TOKENIZE_ERR();
+					}
+					break;
 				default:
 					printf("%s: unexpected character: \'%c\'\n",file->path,*str);
-					tk_print_context(&tk,file->contents);
-					success = false;
+					tk_print_context(tk.str,file->contents);
+					TOKENIZE_ERR();
 			}
 			tk_pushback(tk);
 			str++;
 		}
 	}
-	if(!success)
-		tk_free();
-	return success;
+	return true;
 }

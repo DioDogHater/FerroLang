@@ -16,21 +16,27 @@ enum{
 	tk_char = 0,
 	tk_char_lit,
 	tk_i8,
+	tk_u8,
 	tk_i16,
+	tk_u16,
 	tk_i32,
+	tk_u32,
 	tk_i64,
+	tk_u64,
 	tk_int_lit,
-	tk_float,
+	tk_f32,
+	tk_f64,
 	tk_float_lit,
 	tk_str,
 	tk_str_lit,
 	tk_bool,
 	tk_bool_lit,
 
-	// Variables / constants
-	tk_var,
+	// Variable / data keywords
 	tk_arr,
 	tk_ptr,
+	tk_dict,
+	tk_list,
 	tk_const,
 	tk_constexpr,
 
@@ -75,6 +81,15 @@ enum{
 	tk_cmp_strict,
 	tk_cmp_type,
 
+	// Logical operators
+	tk_and,
+	tk_or,
+	tk_xor,
+
+	// Preprocessor commands
+	tk_include,		// Determines start / end of included file tokens
+	tk_end_include,
+
 	// Unknown symbol, handled during parsing
 	tk_symbol,
 };
@@ -104,7 +119,7 @@ void tk_pushback(token);
 void tk_free(void);
 token* tk_peek(int);
 token* tk_consume(int);
-void tk_print_context(token*,const char*);
+void tk_print_context(const char*,const char*);
 void tk_print(token*);
 bool tk_cmp_str(token*,const char*);
 

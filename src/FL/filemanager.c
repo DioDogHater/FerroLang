@@ -1,9 +1,13 @@
 #include "filemanager.h"
+#include <stdlib.h>
+
+file_list_t file_list = {new_file(NULL),NULL};
 
 bool load_file(file_t* file){
 	FILE* fptr = fopen(file->path, "rb");
 	if(!fptr){
-		perror("Failed to open file");
+		printf("failed to open %s\n", file->path);
+		perror(NULL);
 		return false;
 	}
 	fseek(fptr,0L,SEEK_END);
@@ -35,21 +39,24 @@ void close_file(file_t* file){
 	file->contents = NULL;
 }
 
-bool append_start_file(file_t* dest, const char* path){
-	file_t src = new_file(path);
-	if(!load_file(&src)) return false;;
-	dest->contents = (char*) realloc((void*)dest->contents, dest->size + src.size);
-	memcpy((void*)dest->contents+src.size,(void*)src.contents, dest->size);
-	memcpy((void*)dest->contents,(void*)src.contents,src.size);
-	close_file(&src);
-	return true;
+void append_file_list(file_t file){
+	file_list_t* node = (file_list_t*) malloc(sizeof(file_list_t));
+	if(!node){
+		printf("failed to allocate %lu bytes for file list\n",sizeof(file_list_t));
+		exit(EXIT_FAILURE);
+	}
+	*node = (file_list_t){file,NULL};
+	file_list_t* ptr = &file_list;
+	while(ptr->next) ptr = ptr->next;
+	ptr->next = node;
 }
 
-bool append_end_file(file_t* dest, const char* path){
-	file_t src = new_file(path);
-	if(!load_file(&src)) return false;;
-	dest->contents = (char*) realloc((void*)dest->contents, dest->size + src.size);
-	memcpy((void*)dest->contents+dest->size,(void*)src.contents,src.size);
-	close_file(&src);
-	return true;
+void free_file_list(void){
+	file_list_t* ptr = file_list.next;
+	if(!ptr) return;
+	while(ptr->next){
+		void* node = ptr;
+		ptr = ptr->next;
+		free(node);
+	}
 }

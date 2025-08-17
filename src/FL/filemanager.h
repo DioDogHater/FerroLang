@@ -13,9 +13,18 @@ typedef struct{
 } file_t;
 #define new_file(p) {(p),NULL,0}
 
+struct file_list_t;
+typedef struct file_list_t{
+	file_t f;
+	struct file_list_t* next;
+} file_list_t;
+
+extern file_list_t file_list;
+
 bool load_file(file_t*);
 void close_file(file_t*);
-bool append_start_file(file_t*,const char*);
-bool append_end_file(file_t*,const char*);
+
+void append_file_list(file_t);
+void free_file_list(void);
 
 #endif
