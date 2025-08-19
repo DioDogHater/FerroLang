@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <ctype.h>
 
+#include "datastructures.h"
 #include "filemanager.h"
 
 enum{
@@ -47,7 +48,6 @@ enum{
 	tk_while,
 	tk_for,
 	tk_break,
-	tk_func,
 	tk_ret,
 
 	// Operators
@@ -71,6 +71,15 @@ enum{
 	tk_obracket,	// []
 	tk_cbracket,
 
+	// Built-in functions
+	tk_sizeof,
+	tk_typeof,
+	tk_print,
+	tk_putchar,
+	tk_input,
+	tk_getchar,
+	tk_exit,
+
 	// Comparison operators
 	tk_cmp_eq,
 	tk_cmp_neq,
@@ -89,39 +98,42 @@ enum{
 	// Preprocessor commands
 	tk_include,		// Determines start / end of included file tokens
 	tk_end_include,
+	tk_macro,
+	tk_end_macro,
+	tk_macro_arg,
 
 	// Unknown symbol, handled during parsing
 	tk_symbol,
 };
-typedef uint16_t token_t;
+typedef uint32_t token_t;
 
 typedef struct{
 	token_t type;
-	uint16_t strlen;
+	uint32_t strlen;
 	const char* str;
 } token;
 
-struct tk_keyword{
-	const char* keyword;
-	token_t type;
-};
-#define TK_KW(k) {#k, tk_##k}
-
-struct tk_array{
-	size_t size;
-	size_t memsize;
-	token* tks;
-};
-extern struct tk_array tk_array;
+typedef DYNAMIC_ARRAY(token* tks) tk_array_t;
+extern tk_array_t tk_array;
 extern size_t tk_index;
+
+typedef struct{
+	const char* symbol;
+	size_t macro_start;
+	uint32_t symbol_len;
+} macro;
+
+typedef DYNAMIC_ARRAY(macro* macros) macro_array_t;
+extern macro_array_t macro_array;
 
 void tk_pushback(token);
 void tk_free(void);
 token* tk_peek(int);
 token* tk_consume(int);
-void tk_print_context(const char*,const char*);
-void tk_print(token*);
+void tk_print_context(const char*, uint32_t, const char*);
+void tk_print_token(token*);
 bool tk_cmp_str(token*,const char*);
+bool tk_cmp_strlen(token*,const char*,uint32_t);
 
 bool tokenize(file_t*);
 

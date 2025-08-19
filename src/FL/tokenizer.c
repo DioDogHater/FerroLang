@@ -1,9 +1,13 @@
 #include "tokenizer.h"
+#include "datastructures.h"
 #include "filemanager.h"
-#include <stdlib.h>
-#include <string.h>
 
 // All basic keywords
+struct tk_keyword{
+	const char* keyword;
+	token_t type;
+};
+#define TK_KW(k) {#k, tk_##k}
 static const struct tk_keyword tk_keywords[] = {
 	TK_KW(const),
 	TK_KW(constexpr),
@@ -23,8 +27,14 @@ static const struct tk_keyword tk_keywords[] = {
 	TK_KW(else),
 	TK_KW(while),
 	TK_KW(for),
-	TK_KW(func),
 	TK_KW(ret),
+	TK_KW(sizeof),
+	TK_KW(typeof),
+	TK_KW(print),
+	TK_KW(putchar),
+	TK_KW(input),
+	TK_KW(getchar),
+	TK_KW(exit),
 	TK_KW(or),
 	TK_KW(and),
 	TK_KW(xor),
@@ -32,28 +42,25 @@ static const struct tk_keyword tk_keywords[] = {
 };
 
 // Token dynamic array
-struct tk_array tk_array = {0,0,NULL};
+tk_array_t tk_array = NEW_DYNAMIC_ARRAY(sizeof(token));
 size_t tk_index = 0;
+
+// Macro dynamic array
+macro_array_t macro_array = NEW_DYNAMIC_ARRAY(sizeof(macro));
 
 // Push token to the back of tk_array
 // Grows tk_array if needed
 void tk_pushback(token tk){
-	if(tk_array.memsize - tk_array.size < 1){
-		tk_array.memsize = (tk_array.memsize) ? tk_array.memsize+32 : 32;
-		tk_array.tks = realloc(tk_array.tks, tk_array.memsize*sizeof(token));
-		if(!tk_array.tks){
-			printf("failed to allocate %lu bytes for tokens!\n",tk_array.memsize*sizeof(token));
-			exit(EXIT_FAILURE);
-		}
+	if(!dynamic_array_pushback((dynamic_array_t*) &tk_array, &tk)){
+		printf("token array error: %s\n",DS_ERROR_MSG);
+		exit(EXIT_FAILURE);
 	}
-	tk_array.tks[tk_array.size++] = tk;
 }
 
 // Frees tk_array
 void tk_free(void){
-	if(tk_array.tks)
-		free(tk_array.tks);
-	tk_array = (struct tk_array){0,0,NULL};
+	dynamic_array_free((dynamic_array_t*) &tk_array);
+	dynamic_array_free((dynamic_array_t*) &macro_array);
 }
 
 // Get the nth token after current index,
@@ -73,44 +80,59 @@ token* tk_consume(int n){
 }
 
 // Prints the full line of code where the token comes from
-void tk_print_context(const char* tk, const char* src){
+void tk_print_context(const char* tk, uint32_t len, const char* src){
 	int line_start = 1;
 	for(; tk-line_start >= src && *(tk-line_start) != '\n'; line_start++);
 	line_start--;
-	int line_end = 1;
+	int line_end = (len) ? len : 1;
 	for(; *(tk+line_end) &&  *(tk+line_end) != '\n'; line_end++);
-	printf("%.*s\n",line_start+line_end,tk-line_start);
+	printf("\x1b[1;30m>>>>>------------------<<<<<\x1b[37;1m\n%.*s\n\x1b[0;1;30m>>>>>------------------<<<<<\x1b[0m\n\n",line_start+line_end,tk-line_start);
 }
 
 // Prints the token in a debugging manner
-void tk_print(token* tk){
+void tk_print_token(token* tk){
 	printf("\"%.*s\" (%d)",tk->strlen,tk->str,tk->type);
 }
 
 // Compares string with token's string data
 bool tk_cmp_str(token* tk, const char* str){
-	for(uint16_t i = 0; i < tk->strlen; i++, str++)
+	for(uint32_t i = 0; i < tk->strlen; i++, str++)
 		if(!(*str) || tk->str[i] != *str)
 			return false;
 	return true;
 }
 
-static void tk_error(const char* msg, token* tk, file_t* file){
-	printf("%s:",file->path);
-	puts(msg);
-	tk_print_context(tk->str, file->contents);
+// Compares token's string with length determined token
+bool tk_cmp_strlen(token* tk1, const char* str, uint32_t strlen){
+	for(uint32_t i = 0; i < tk1->strlen && i < strlen; i++, str++){
+		if(tk1->str[i] != *str)
+			return false;
+	}
+	return true;
 }
 
-#define TOKENIZE_ERR() do{tk_free(); return false;}while(0)
+static void tk_error(const char* msg, token* tk, file_t* file){
+	printf("\x1b[0;32;1;3m%s:\x1b[0;33;1m ",file->path);
+	puts(msg);
+	printf("\x1b[0m");
+	tk_print_context(tk->str, tk->strlen, file->contents);
+}
+
+#define TOKENIZE_ERR(_msg) do{ tk_error((_msg),&tk,file); tk_free(); return false;}while(0)
 
 // Tokenizes (classifies words as tokens)
 // the contents of the file passed as arg
 bool tokenize(file_t* file){
 	if(!file->contents)
 		return false;
+	bool recording_macro = false;
 	const char* str = file->contents;
 	while(*str){
-		if(isspace(*str) || isblank(*str) || !isprint(*str))
+		if(recording_macro && *str == '\n' && *(str-1) != '\\'){
+			tk_pushback((token){tk_end_macro,0,NULL});
+			recording_macro = false;
+			str++;
+		}else if(isspace(*str) || isblank(*str) || !isprint(*str))
 			str++;
 		else if(isalpha(*str) || *str == '_'){
 			token tk = {tk_symbol, 0, str++};
@@ -120,9 +142,24 @@ bool tokenize(file_t* file){
 				const struct tk_keyword* kw = tk_keywords;
 				kw->keyword && kw->type != tk_invalid;
 				kw++
-			) if(tk_cmp_str(&tk, kw->keyword))
+			) if(tk_cmp_str(&tk, kw->keyword)){
 				tk.type = kw->type;
-			tk_pushback(tk);
+				break;
+			}
+			if(tk.type == tk_symbol){
+				for(size_t i = 0; i < macro_array.size; i++)
+					if(tk_cmp_strlen(&tk, macro_array.macros[i].symbol, macro_array.macros[i].symbol_len)){
+						token* tk_ptr = &tk_array.tks[macro_array.macros[i].macro_start+1];
+						while(tk_ptr->type != tk_end_macro){
+							tk_pushback(*tk_ptr);
+							tk_ptr++;
+						}
+						tk.type = tk_invalid;
+						break;
+					}
+			}
+			if(tk.type != tk_invalid)
+				tk_pushback(tk);
 		}else if(isdigit(*str)){
 			token tk = {tk_int_lit,0,str++};
 			while(*str && isdigit(*str))
@@ -144,17 +181,15 @@ bool tokenize(file_t* file){
 					}else if(*(str+1) == '\\' && *(str+2) && *(str+3) == '\''){
 						tk = (token){tk_char_lit,2,str+1};
 						str += 3;
-					}else{
-						tk_error("invalid char literal:",&tk,file);
-						TOKENIZE_ERR();
-					}
+					}else
+						TOKENIZE_ERR("invalid char literal");
 					break;
 				case '"':
 					str++;
 					while(*str != '"'){
 						if(!(*str)){
-							tk_error("invalid string literal:",&tk,file);
-							TOKENIZE_ERR();
+							tk.strlen = str - tk.str;
+							TOKENIZE_ERR("invalid string literal");
 						}
 						str++;
 					}
@@ -184,11 +219,29 @@ bool tokenize(file_t* file){
 					else
 						tk.type = tk_assign;
 					break;
+				case '>':
+					if(*(str+1) == '=')
+						tk = (token){tk_cmp_geq, 2, str++};
+					else
+						tk.type = tk_cmp_g;
+					break;
+				case '<':
+					if(*(str+1) == '=')
+						tk = (token){tk_cmp_leq, 2, str++};
+					else
+						tk.type = tk_cmp_l;
+					break;
 				case '?':
-					tk.type = tk_question;
+					if(*(str+1) == '=')
+						tk = (token){tk_cmp_type, 2, str++};
+					else
+						tk.type = tk_question;
 					break;
 				case '!':
-					tk.type = tk_exclam;
+					if(*(str+1) == '=')
+						tk = (token){tk_cmp_neq, 2, str++};
+					else
+						tk.type = tk_exclam;
 					break;
 				case ':':
 					tk.type = tk_colon;
@@ -225,37 +278,31 @@ bool tokenize(file_t* file){
 					if(tk_cmp_str(&tk, "include")){
 						str += 8;
 						while(isspace(*str)){
-							if(*str == '\n'){
-								tk_error("expected include path:",&tk,file);
-								TOKENIZE_ERR();
-							}
+							if(*str == '\n')
+								TOKENIZE_ERR("expected include path");
 							str++;
 						}
-						if(*str != '"'){
-							tk_error("expected header file path after include:",&tk,file);
-							TOKENIZE_ERR();
-						}
+						if(*str != '"')
+							TOKENIZE_ERR("expected header file path after include");
 						tk.str = ++str;
 						while(*str != '"'){
-							if(!(*str) || *str == '\n'){
-								tk_error("expected valid header file path after include:",&tk,file);
-								TOKENIZE_ERR();
-							}
+							if(!(*str) || *str == '\n')
+								TOKENIZE_ERR("expected valid header file path after include");
 							str++;
 						}
 						tk.type = tk_include;
 						tk.strlen = str - tk.str;
-						if(str - tk.str > 255){
-							tk_error("header file path is too long (255 character max limit!):",&tk,file);
-							TOKENIZE_ERR();
-						}
+						if(tk.strlen > 511)
+							TOKENIZE_ERR("header file path is too long (max length of 511 characters)");
 						tk_pushback(tk);
-						char file_path[255];
+						char file_path[512];
 						memcpy((void*)file_path,(void*)tk.str,tk.strlen);
 						file_path[tk.strlen] = '\0';
 						file_t include_file = new_file(file_path);
-						if(!load_file(&include_file))
-							TOKENIZE_ERR();
+						if(!load_file(&include_file)){
+							tk_free();
+							return false;
+						}
 						append_file_list(include_file);
 						if(!tokenize(&include_file))
 							return false;
@@ -263,21 +310,43 @@ bool tokenize(file_t* file){
 						tk.str = file->path;
 						tk.strlen = strlen(file->path);
 					}else if(tk_cmp_str(&tk, "define")){
-						tk_error("not implemented yet.",&tk,file);
-						TOKENIZE_ERR();
-					}else{
-						tk_error("unknown preprocessor directive:",&tk,file);
-						TOKENIZE_ERR();
-					}
+						str += 7;
+						while(isspace(*str)){
+							if(*str == '\n')
+								TOKENIZE_ERR("macro has no name");
+							str++;
+						}
+						tk.str = str;
+						if(!isalpha(*str))
+							TOKENIZE_ERR("macro name should start with a letter (A-Z)");
+						str++;
+						while(isalnum(*str) || *str == '_') str++;
+						tk = (token) {tk_macro, str - tk.str, tk.str};
+						macro new_macro = {tk.str, tk_array.size, tk.strlen};
+						dynamic_array_pushback((dynamic_array_t*) &macro_array, &new_macro);
+						recording_macro = true;
+					}else
+						TOKENIZE_ERR("unknown preprocessor directive:");
+					break;
+				case '\\':
+					str += 2;
 					break;
 				default:
 					printf("%s: unexpected character: \'%c\'\n",file->path,*str);
-					tk_print_context(tk.str,file->contents);
-					TOKENIZE_ERR();
+					tk_print_context(tk.str,0,file->contents);
+					tk_free();
+					return false;
 			}
+			if(tk.type == tk_invalid)
+				continue;
 			tk_pushback(tk);
 			str++;
 		}
+	}
+	if(recording_macro){
+		printf("%s: macro was not completed before end of file!\n", file->path);
+		tk_free();
+		return false;
 	}
 	return true;
 }

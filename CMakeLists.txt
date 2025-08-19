@@ -9,6 +9,7 @@ set(CMAKE_BUILD_TYPE Debug)
 add_library(FL STATIC
 	src/FL/filemanager.c
 	src/FL/tokenizer.c
+	src/FL/datastructures.c
 )
 
 # FerroLang interpreter

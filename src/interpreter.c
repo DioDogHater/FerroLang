@@ -13,7 +13,7 @@ int main(int argc, char* argv[]){
 
 	token* tk;
 	while((tk = tk_consume(0))){
-		tk_print(tk);
+		tk_print_token(tk);
 		putchar(' ');
 	}
 	putchar('\n');
