@@ -97,10 +97,13 @@ enum{
 	tk_xor,
 
 	// Preprocessor commands
-	tk_include,		// Determines start / end of included file tokens
+	tk_include,
 	tk_end_include,
 	tk_macro,
 	tk_end_macro,
+	tk_ifdef,
+	tk_ifndef,
+	tk_endif,
 
 	// Unknown symbol, handled during parsing
 	tk_symbol,

@@ -1,1 +1,6 @@
+#ifndef TEST_HEADER_H
+#define TEST_HEADER_H
+
 char test_char = 'X';
+
+#endif

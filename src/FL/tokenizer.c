@@ -104,11 +104,15 @@ bool tk_cmp_str(token* tk, const char* str){
 	for(uint32_t i = 0; i < tk->strlen; i++, str++)
 		if(!(*str) || tk->str[i] != *str)
 			return false;
+	if(*str)
+		return false;
 	return true;
 }
 
 // Compares token's string with length determined token
 bool tk_cmp_strlen(token* tk1, const char* str, uint32_t strlen){
+	if(tk1->strlen != strlen)
+		return false;
 	for(uint32_t i = 0; i < tk1->strlen && i < strlen; i++, str++){
 		if(tk1->str[i] != *str)
 			return false;
@@ -285,9 +289,10 @@ bool tokenize(file_t* file){
 				case '#':
 					if(str > file->contents && *(str-1) != '\n')
 						TOKENIZE_ERR("preprocessor directive needs to be at start of line");
-					tk.str++;
-					if(tk_cmp_str(&tk, "include")){
-						str += 8;
+					str++;
+					for(;isalpha(*str);str++);
+					tk.strlen = str - tk.str;
+					if(tk_cmp_str(&tk, "#include")){
 						while(isspace(*str)){
 							if(*str == '\n')
 								TOKENIZE_ERR("expected include path");
@@ -320,8 +325,7 @@ bool tokenize(file_t* file){
 						tk.type = tk_end_include;
 						tk.str = file->path;
 						tk.strlen = strlen(file->path);
-					}else if(tk_cmp_str(&tk, "define")){
-						str += 7;
+					}else if(tk_cmp_str(&tk, "#define")){
 						while(isspace(*str)){
 							if(*str == '\n')
 								TOKENIZE_ERR("macro has no name");
@@ -336,8 +340,32 @@ bool tokenize(file_t* file){
 						macro new_macro = {tk.str, tk_array.size, tk.strlen};
 						dynamic_array_pushback((dynamic_array_t*) &macro_array, &new_macro);
 						recording_macro = true;
-					//}else if(tk_cmp_str(&tk, "ifdef")){
-					//	str += 6;
+					}else if(tk_cmp_str(&tk, "#ifdef")){
+						while(isspace(*str)){
+							if(*str == '\n')
+								TOKENIZE_ERR("expected macro name");
+							str++;
+						}
+						tk.str = str;
+						if(!isalpha(*str))
+							TOKENIZE_ERR("macro name should start with a letter (A-Z)");
+						str++;
+						while(isalnum(*str) || *str == '_') str++;
+						tk = (token) {tk_ifdef, str - tk.str, tk.str};
+					}else if(tk_cmp_str(&tk, "#ifndef")){
+						while(isspace(*str)){
+							if(*str == '\n')
+								TOKENIZE_ERR("expected macro name");
+							str++;
+						}
+						tk.str = str;
+						if(!isalpha(*str))
+							TOKENIZE_ERR("macro name should start with a letter (A-Z)");
+						str++;
+						while(isalnum(*str) || *str == '_') str++;
+						tk = (token) {tk_ifndef, str - tk.str, tk.str};
+					}else if(tk_cmp_str(&tk, "#endif")){
+						tk.type = tk_endif;
 					}else
 						TOKENIZE_ERR("unknown preprocessor directive:");
 					break;
