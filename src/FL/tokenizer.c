@@ -86,7 +86,12 @@ void tk_print_context(const char* tk, uint32_t len, const char* src){
 	line_start--;
 	int line_end = (len) ? len : 1;
 	for(; *(tk+line_end) &&  *(tk+line_end) != '\n'; line_end++);
-	printf("\x1b[1;30m>>>>>------------------<<<<<\x1b[37;1m\n%.*s\n\x1b[0;1;30m>>>>>------------------<<<<<\x1b[0m\n\n",line_start+line_end,tk-line_start);
+	printf(
+		RESET_ATTR BOLD BLACK_FG ">>>>>------------------<<<<<"
+		WHITE_FG "\n%.*s\n"
+		BLACK_FG">>>>>------------------<<<<<" RESET_ATTR "\n\n",
+		line_start+line_end, tk-line_start
+	);
 }
 
 // Prints the token in a debugging manner
@@ -111,10 +116,14 @@ bool tk_cmp_strlen(token* tk1, const char* str, uint32_t strlen){
 	return true;
 }
 
-static void tk_error(const char* msg, token* tk, file_t* file){
-	printf("\x1b[0;32;1;3m%s:\x1b[0;33;1m ",file->path);
+void tk_error(const char* msg, token* tk, file_t* file){
+	unsigned int line_number = 1;
+	const char* str = tk->str;
+	for(;str >= file->contents && *str; str++)
+		if(*str == '\n')
+			line_number++;
+	printf("\n" RESET_ATTR GREEN_FG BOLD ITALIC "%s:%u" RESET_ATTR " - " RED_FG BOLD,file->path,line_number);
 	puts(msg);
-	printf("\x1b[0m");
 	tk_print_context(tk->str, tk->strlen, file->contents);
 }
 
@@ -123,18 +132,18 @@ static void tk_error(const char* msg, token* tk, file_t* file){
 // Tokenizes (classifies words as tokens)
 // the contents of the file passed as arg
 bool tokenize(file_t* file){
+	bool recording_macro = false;
 	if(!file->contents)
 		return false;
-	bool recording_macro = false;
 	const char* str = file->contents;
 	while(*str){
 		if(recording_macro && *str == '\n' && *(str-1) != '\\'){
 			tk_pushback((token){tk_end_macro,0,NULL});
 			recording_macro = false;
 			str++;
-		}else if(isspace(*str) || isblank(*str) || !isprint(*str))
+		}else if(isspace(*str) || isblank(*str) || !isprint(*str)){
 			str++;
-		else if(isalpha(*str) || *str == '_'){
+		}else if(isalpha(*str) || *str == '_'){
 			token tk = {tk_symbol, 0, str++};
 			while(*str && (isalnum(*str) || *str == '_')) str++;
 			tk.strlen = str - tk.str;
@@ -274,6 +283,8 @@ bool tokenize(file_t* file){
 					tk.type = tk_cbracket;
 					break;
 				case '#':
+					if(str > file->contents && *(str-1) != '\n')
+						TOKENIZE_ERR("preprocessor directive needs to be at start of line");
 					tk.str++;
 					if(tk_cmp_str(&tk, "include")){
 						str += 8;
@@ -325,6 +336,8 @@ bool tokenize(file_t* file){
 						macro new_macro = {tk.str, tk_array.size, tk.strlen};
 						dynamic_array_pushback((dynamic_array_t*) &macro_array, &new_macro);
 						recording_macro = true;
+					//}else if(tk_cmp_str(&tk, "ifdef")){
+					//	str += 6;
 					}else
 						TOKENIZE_ERR("unknown preprocessor directive:");
 					break;
@@ -332,10 +345,7 @@ bool tokenize(file_t* file){
 					str += 2;
 					break;
 				default:
-					printf("%s: unexpected character: \'%c\'\n",file->path,*str);
-					tk_print_context(tk.str,0,file->contents);
-					tk_free();
-					return false;
+					TOKENIZE_ERR("unexpected character:");
 			}
 			if(tk.type == tk_invalid)
 				continue;

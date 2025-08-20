@@ -9,6 +9,7 @@
 
 #include "datastructures.h"
 #include "filemanager.h"
+#include "textstyle.h"
 
 enum{
 	tk_invalid = 0xFFFF,
@@ -100,7 +101,6 @@ enum{
 	tk_end_include,
 	tk_macro,
 	tk_end_macro,
-	tk_macro_arg,
 
 	// Unknown symbol, handled during parsing
 	tk_symbol,
@@ -134,6 +134,7 @@ void tk_print_context(const char*, uint32_t, const char*);
 void tk_print_token(token*);
 bool tk_cmp_str(token*,const char*);
 bool tk_cmp_strlen(token*,const char*,uint32_t);
+void tk_error(const char*,token*,file_t*);
 
 bool tokenize(file_t*);
 

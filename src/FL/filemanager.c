@@ -18,7 +18,7 @@ bool load_file(file_t* file){
 		printf("File %s has invalid size!\n",file->path);
 		return false;
 	}
-	file->contents = (const char*)realloc((void*)file->contents,file->size);
+	file->contents = (const char*)realloc((void*)file->contents,file->size+1);
 	if(!file->contents){
 		fclose(fptr);
 		printf("Failed to allocate memory for file %s\n",file->path);
@@ -29,6 +29,7 @@ bool load_file(file_t* file){
 		printf("Failed to read file %s\n",file->path);
 		return false;
 	}
+	((char*)file->contents)[file->size] = '\0';
 	fclose(fptr);
 	return true;
 }
