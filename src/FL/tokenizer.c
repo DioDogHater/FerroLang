@@ -104,9 +104,7 @@ bool tk_cmp_str(token* tk, const char* str){
 	for(uint32_t i = 0; i < tk->strlen; i++, str++)
 		if(!(*str) || tk->str[i] != *str)
 			return false;
-	if(*str)
-		return false;
-	return true;
+	return !(*str);
 }
 
 // Compares token's string with length determined token
@@ -120,8 +118,10 @@ bool tk_cmp_strlen(token* tk1, const char* str, uint32_t strlen){
 	return true;
 }
 
-void tk_error(const char* msg, token* tk, file_t* file){
+bool tk_error(const char* msg, token* tk, file_t* file){
 	unsigned int line_number = 1;
+	if(!tk)
+		tk = &tk_array.tks[0];
 	const char* str = tk->str;
 	for(;str >= file->contents && *str; str++)
 		if(*str == '\n')
@@ -129,9 +129,10 @@ void tk_error(const char* msg, token* tk, file_t* file){
 	printf("\n" RESET_ATTR GREEN_FG BOLD ITALIC "%s:%u" RESET_ATTR " - " RED_FG BOLD,file->path,line_number);
 	puts(msg);
 	tk_print_context(tk->str, tk->strlen, file->contents);
+	return false;
 }
 
-#define TOKENIZE_ERR(_msg) do{ tk_error((_msg),&tk,file); tk_free(); return false;}while(0)
+#define TOKENIZE_ERR(_msg) do{ (void) tk_error((_msg),&tk,file); tk_free(); return false;}while(0)
 
 // Tokenizes (classifies words as tokens)
 // the contents of the file passed as arg
@@ -218,7 +219,11 @@ bool tokenize(file_t* file){
 					tk.type = tk_mul;
 					break;
 				case '/':
-					tk.type = tk_div;
+					if(*(str+1) == '/'){
+						tk.type = tk_invalid;
+						while(*str && *str != '\n') str++;
+					}else
+						tk.type = tk_div;
 					break;
 				case '%':
 					tk.type = tk_mod;

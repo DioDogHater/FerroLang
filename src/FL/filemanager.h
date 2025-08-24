@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 typedef struct{
@@ -25,6 +26,7 @@ bool load_file(file_t*);
 void close_file(file_t*);
 
 void append_file_list(file_t);
+file_t* find_file(const char*, uint32_t);
 void free_file_list(void);
 
 #endif

@@ -1,10 +1,12 @@
 #include "datastructures.h"
 
-uint16_t ds_error;
+uint16_t ds_error = DS_INVALID;
 const char* const ds_error_messages[] = {
 	"NULL pointer exception",
 	"failed to allocate memory",
-	"index out of bounds"
+	"index out of bounds",
+	"memory out of bounds",
+	"no error"
 };
 #define DS_ERROR(_e) ds_error = (_e);
 
@@ -110,9 +112,8 @@ bool hashtable_set(hashtable_t* ht, const void* data){
 		DS_ERROR(DS_NULL_ERR);
 		return false;
 	}
-	size_t hash = (ht->hashing_func) ?
-		ht->hashing_func(ht->set_count, data) :
-		(size_t) (*((unsigned char*)data) % ht->set_count);
+	size_t hash = ((ht->hashing_func) ? ht->hashing_func(data) : (size_t) *((unsigned char*)data));
+	hash %= ht->set_count;
 	if(hash >= ht->set_count){
 		DS_ERROR(DS_INDEX_ERR);
 		return false;
@@ -129,13 +130,8 @@ hashset_t* hashtable_get(hashtable_t* ht, const void* key){
 		DS_ERROR(DS_NULL_ERR);
 		return NULL;
 	}
-	size_t hash = (ht->hashing_func) ?
-		ht->hashing_func(ht->set_count, key) :
-		(size_t) (*((unsigned char*)key) % ht->set_count);
-	if(hash >= ht->set_count){
-		DS_ERROR(DS_INDEX_ERR);
-		return NULL;
-	}
+	size_t hash = ((ht->hashing_func) ? ht->hashing_func(key) : (size_t) *((unsigned char*)key));
+	hash %= ht->set_count;
 	return &ht->sets[hash];
 }
 
@@ -159,4 +155,52 @@ void hashtable_free(hashtable_t* ht){
 	for(size_t i = 0; i < ht->set_count; i++){
 		dynamic_array_free((dynamic_array_t*) &ht->sets[i]);
 	}
+}
+
+bool arena_setup(arena_t* arena, size_t size){
+	if(!arena){
+		DS_ERROR(DS_NULL_ERR);
+		return false;
+	}
+	arena->size = size;
+	arena->memory = (const char*) realloc((void*)arena->memory, arena->size);
+	if(!arena->memory){
+		DS_ERROR(DS_MEM_ERR);
+		return false;
+	}
+	arena->ptr = arena->memory;
+	return true;
+}
+
+void* arena_alloc(arena_t* arena, size_t size){
+	if(!arena){
+		DS_ERROR(DS_NULL_ERR);
+		return NULL;
+	}
+	if(arena->ptr + size > arena->memory + arena->size){
+		DS_ERROR(DS_BOUNDS_ERR);
+		return NULL;
+	}
+	arena->ptr += size;
+	return (void*)(arena->ptr - size);
+}
+
+bool arena_free(arena_t* arena, size_t size){
+	if(!arena){
+		DS_ERROR(DS_NULL_ERR);
+		return false;
+	}
+	if(arena->ptr - size < arena->memory){
+		DS_ERROR(DS_BOUNDS_ERR);
+		return false;
+	}
+	arena->ptr -= size;
+	return true;
+}
+
+void arena_destroy(arena_t* arena){
+	if(!arena)
+		return;
+	free((void*)arena->memory);
+	*arena = (arena_t) NEW_ARENA();
 }

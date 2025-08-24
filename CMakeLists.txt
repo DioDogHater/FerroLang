@@ -10,6 +10,7 @@ add_library(FL STATIC
 	src/FL/filemanager.c
 	src/FL/tokenizer.c
 	src/FL/datastructures.c
+	src/FL/parser.c
 )
 
 # FerroLang interpreter

@@ -10,7 +10,9 @@
 enum{
 	DS_NULL_ERR = 0,
 	DS_MEM_ERR,
-	DS_INDEX_ERR
+	DS_INDEX_ERR,
+	DS_BOUNDS_ERR,
+	DS_INVALID,
 };
 
 extern uint16_t ds_error;
@@ -44,11 +46,10 @@ typedef struct {
 	size_t max_size;	// Max amount of pairs in a single set
 
 	// Hashing function
-	// size_t : set count
 	// const void* : pointer to key / value pair
 	// returns the index of the set the pair belongs to
 	// IF NULL, will default to using first byte as the index
-	size_t (*hashing_func)(size_t,const void*);
+	size_t (*hashing_func)(const void*);
 } hashtable_t;
 
 #define NEW_HASHTABLE(_sz,_pair_sz) {NULL,0,(_sz),(_pair_sz),NULL}
@@ -61,5 +62,21 @@ bool hashtable_set(hashtable_t*,const void*);
 hashset_t* hashtable_get(hashtable_t*,const void*);
 void hashtable_parse(hashtable_t*,void (*)(void*,void*),void*);
 void hashtable_free(hashtable_t*);
+
+typedef struct{
+	size_t size;
+	const char* ptr;
+	const char* memory;
+} arena_t;
+#define NEW_ARENA() {0,NULL,NULL}
+
+#define KB 1024
+#define MB 1024*KB
+#define GB 1024*MB
+
+bool arena_setup(arena_t*,size_t);
+void* arena_alloc(arena_t*,size_t);
+bool arena_free(arena_t*,size_t);
+void arena_destroy(arena_t*);
 
 #endif

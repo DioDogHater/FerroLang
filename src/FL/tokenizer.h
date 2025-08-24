@@ -107,6 +107,14 @@ enum{
 
 	// Unknown symbol, handled during parsing
 	tk_symbol,
+
+	// Parsing enums
+	tk_var_assign,
+	tk_var_decl,
+	tk_func_call,
+	tk_binexpr,
+	tk_negation,
+	tk_scope,
 };
 typedef uint32_t token_t;
 
@@ -137,7 +145,7 @@ void tk_print_context(const char*, uint32_t, const char*);
 void tk_print_token(token*);
 bool tk_cmp_str(token*,const char*);
 bool tk_cmp_strlen(token*,const char*,uint32_t);
-void tk_error(const char*,token*,file_t*);
+bool tk_error(const char*,token*,file_t*);
 
 bool tokenize(file_t*);
 
