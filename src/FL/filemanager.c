@@ -1,5 +1,4 @@
 #include "filemanager.h"
-#include "tokenizer.h"
 #include <stdlib.h>
 
 file_list_t file_list = {new_file(NULL),NULL};
@@ -56,7 +55,7 @@ void append_file_list(file_t file){
 static bool strlen_cmp(const char* str1, const char* str2, uint32_t strlen){
 	if(!str1 || !str2 || !strlen)
 		return false;
-	for(uint32_t i = 0; i < strlen; i++, str1++){
+	for(uint32_t i = 0; i < strlen; i++, str1++, str2++){
 		if(!(*str1) || *str1 != *str2)
 			return false;
 	}
@@ -64,11 +63,11 @@ static bool strlen_cmp(const char* str1, const char* str2, uint32_t strlen){
 }
 
 file_t* find_file(const char* str, uint32_t strlen){
-	file_list_t* ptr = &file_list;
-	while(ptr->next){
-		ptr = ptr->next;
+	file_list_t* ptr = file_list.next;
+	while(ptr){
 		if(strlen_cmp(ptr->f.path, str, strlen))
 			return &ptr->f;
+		ptr = ptr->next;
 	}
 	return NULL;
 }

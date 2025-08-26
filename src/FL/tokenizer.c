@@ -84,19 +84,21 @@ void tk_print_context(const char* tk, uint32_t len, const char* src){
 	int line_start = 1;
 	for(; tk-line_start >= src && *(tk-line_start) != '\n'; line_start++);
 	line_start--;
-	int line_end = (len) ? len : 1;
-	for(; *(tk+line_end) &&  *(tk+line_end) != '\n'; line_end++);
+	int line_end = 1;
+	for(; *(tk+line_end+len) &&  *(tk+line_end+len) != '\n'; line_end++);
 	printf(
 		RESET_ATTR BOLD BLACK_FG ">>>>>------------------<<<<<"
-		WHITE_FG "\n%.*s\n"
+		"\n" WHITE_FG "%.*s" UNDERLINED YELLOW_FG "%.*s" NOT_UNDERLINED WHITE_FG "%.*s\n"
 		BLACK_FG">>>>>------------------<<<<<" RESET_ATTR "\n\n",
-		line_start+line_end, tk-line_start
+		line_start, tk-line_start,
+		len, tk,
+		line_end, tk+len
 	);
 }
 
 // Prints the token in a debugging manner
 void tk_print_token(token* tk){
-	printf("\"%.*s\" (%d)",tk->strlen,tk->str,tk->type);
+	printf("\"%.*s\" (%d)",(tk->str) ? tk->strlen : 4,(tk->str) ? tk->str : "null",tk->type);
 }
 
 // Compares string with token's string data
@@ -163,7 +165,16 @@ bool tokenize(file_t* file){
 			if(tk.type == tk_symbol){
 				for(size_t i = 0; i < macro_array.size; i++)
 					if(tk_cmp_strlen(&tk, macro_array.macros[i].symbol, macro_array.macros[i].symbol_len)){
+						// Fixed
 						token* tk_ptr = &tk_array.tks[macro_array.macros[i].macro_start+1];
+						size_t macro_size = 0;
+						while(tk_ptr->type != tk_end_macro){
+							macro_size++;
+							tk_ptr++;
+						}
+						dynamic_array_grow((dynamic_array_t*)&tk_array, macro_size);
+
+						tk_ptr -= macro_size;
 						while(tk_ptr->type != tk_end_macro){
 							tk_pushback(*tk_ptr);
 							tk_ptr++;
@@ -313,10 +324,8 @@ bool tokenize(file_t* file){
 						}
 						tk.type = tk_include;
 						tk.strlen = str - tk.str;
-						if(tk.strlen > 511)
-							TOKENIZE_ERR("header file path is too long (max length of 511 characters)");
 						tk_pushback(tk);
-						char file_path[512];
+						char* file_path = (char*) malloc(tk.strlen+1);
 						memcpy((void*)file_path,(void*)tk.str,tk.strlen);
 						file_path[tk.strlen] = '\0';
 						file_t include_file = new_file(file_path);
@@ -342,6 +351,9 @@ bool tokenize(file_t* file){
 						str++;
 						while(isalnum(*str) || *str == '_') str++;
 						tk = (token) {tk_macro, str - tk.str, tk.str};
+						for(size_t i = 0; i < macro_array.size; i++)
+							if(tk_cmp_strlen(&tk, macro_array.macros[i].symbol, macro_array.macros[i].symbol_len))
+								TOKENIZE_ERR("macro is redefined");
 						macro new_macro = {tk.str, tk_array.size, tk.strlen};
 						dynamic_array_pushback((dynamic_array_t*) &macro_array, &new_macro);
 						recording_macro = true;

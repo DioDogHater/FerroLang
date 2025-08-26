@@ -32,6 +32,16 @@ typedef struct{
 	size_t expr_count;
 } node_func_call;
 
+typedef struct{
+	node_t type;
+	token* symbol;
+} node_sizeof;
+
+typedef struct{
+	node_t type;
+	token* symbol;
+} node_typeof;
+
 typedef union node_expr {
 	node_t type;
 	token char_lit;			// tk_char_lit
@@ -40,6 +50,8 @@ typedef union node_expr {
 	token str_lit;			// tk_str_lit
 	token symbol;			// tk_symbol
 	node_func_call func_call;// tk_func_call
+	node_sizeof size_of;	// tk_sizeof
+	node_sizeof type_of;	// tk_typeof
 	node_binexpr binexpr;	// tk_binexpr
 } node_expr;
 
@@ -54,6 +66,7 @@ typedef struct{
 	token_t var_type;
 	token* symbol;
 	node_expr* expr;
+	bool constant;
 } node_var_decl;
 
 typedef struct{
@@ -83,6 +96,7 @@ bool parse_term_expr(node_expr*);
 bool parse_expr(node_expr*,int8_t);
 bool parse_cmp(node_expr*);
 bool parse_condition(node_expr*);
+bool parse_args(node_func_call*);
 bool parse_stmt(node_stmt*);
 bool parse_scope(node_scope*);
 void parser_free_stmt(node_stmt*);

@@ -11,6 +11,8 @@ static void parser_arena_error(const char* func){
 	exit(EXIT_FAILURE);
 }
 
+// Get the binary precedence of an operator
+// -1 if it's not an operator
 int8_t tk_bin_prec(token* tk){
 	switch(tk->type){
 	case tk_plus:
@@ -25,6 +27,7 @@ int8_t tk_bin_prec(token* tk){
 	}
 }
 
+// Parse a term (unique expression)
 bool parse_term_expr(node_expr* expr){
 	if(!expr || !tk_peek(0))
 		return false;
@@ -45,23 +48,7 @@ bool parse_term_expr(node_expr* expr){
 		if(tk_peek(1) && tk_peek(1)->type == tk_oparent){
 			*expr = (node_expr){.func_call={tk_func_call, tk_consume(0), (node_expr*)parser_arena.ptr, 0}};
 			(void) tk_consume(0);
-			while(true){
-				node_expr* arg = (node_expr*) arena_alloc(&parser_arena,sizeof(node_expr));
-				if(!arg)
-					parser_arena_error("parse_term_expr");
-				if(!parse_expr(arg,0))
-					return tk_error("expected valid expression as argument",tk_peek(-1),parser_file);
-				expr->func_call.expr_count++;
-				if(tk_peek(0)){
-					if(tk_peek(0)->type == tk_comma){
-						(void) tk_consume(0);
-						continue;
-					}else if(tk_peek(0)->type == tk_cparent)
-						(void) tk_consume(0);
-					else
-						return tk_error("unexpected token",tk_peek(0),parser_file);
-				} break;
-			}
+			parse_args(&expr->func_call);
 			if(tk_peek(-1)->type != tk_cparent)
 				tk_error("expected ')'",tk_peek(-1),parser_file);
 		}else
@@ -89,11 +76,15 @@ bool parse_term_expr(node_expr* expr){
 		(void) tk_consume(0);
 		break;
 	}default:
-		return false;
+		return tk_error("term expression not implemented yet.",tk_peek(0),parser_file);
 	}
 	return true;
 }
 
+// Parse an expression recursively with operator precedence
+// Expressions work like binary trees, where the children of nodes
+// are the left hand side and right hand side expressions in an
+// arithmetic operation
 bool parse_expr(node_expr* expr, int8_t min_prec){
 	if(!expr)
 		parser_arena_error("parse_expr (arg)");
@@ -128,6 +119,30 @@ bool parse_expr(node_expr* expr, int8_t min_prec){
 	return false;
 }
 
+// Parse the arguments of a function with format:
+// argument, argument, argument ...
+bool parse_args(node_func_call* stmt){
+	while(true){
+		node_expr* arg = (node_expr*) arena_alloc(&parser_arena, sizeof(node_expr));
+		if(!parse_expr(arg,0))
+			return tk_error("expected valid expression",tk_peek(-1),parser_file);
+		stmt->expr_count++;
+		if(tk_peek(0)){
+			if(tk_peek(0)->type == tk_comma){
+				(void) tk_consume(0);
+				continue;
+			}else if(tk_peek(0)->type == tk_cparent)
+				(void) tk_consume(0);
+			else
+				return tk_error("unexpected token",tk_peek(-1),parser_file);
+		}else
+			return tk_error("expected token",tk_peek(-1),parser_file);
+		break;
+	}
+	return true;
+}
+
+// Parse a single statement
 bool parse_stmt(node_stmt* stmt){
 	if(!stmt)
 		return false;
@@ -167,24 +182,89 @@ bool parse_stmt(node_stmt* stmt){
 			(void) tk_consume(0);
 		}else if(!tk_peek(0) || tk_peek(0)->type != tk_semicolon)
 			return tk_error("expected semicolon",tk_peek(-1),parser_file);
-		*stmt = (node_stmt){.var_decl=(node_var_decl){tk_var_decl,type,symbol,expr}};
+		*stmt = (node_stmt){.var_decl=(node_var_decl){tk_var_decl,type,symbol,expr,var_const}};
+		break;
+	}case tk_symbol:{
+		token* symbol = tk_consume(0);
+		if(tk_peek(0)){
+			switch(tk_peek(0)->type){
+			case tk_assign:
+				(void) tk_consume(0);
+				node_expr expr;
+				if(!parse_expr(&expr,0))
+					return tk_error("expected valid expression",tk_peek(-1),parser_file);
+				*stmt = (node_stmt){.var_assign={tk_var_assign,symbol,expr}};
+				break;
+			case tk_oparent:
+				(void) tk_consume(0);
+				*stmt = (node_stmt){.func_call={tk_func_call,symbol,(node_expr*)parser_arena.ptr,0}};
+				if(!parse_args(&stmt->func_call))
+					return false;
+				if(tk_peek(-1)->type != tk_cparent)
+					return tk_error("expected ')'",tk_peek(-1),parser_file);
+				break;
+			default:
+				return tk_error("unexpected token",tk_peek(0),parser_file);
+			}
+			if(tk_peek(0) && tk_peek(0)->type != tk_semicolon)
+				return tk_error("expected semicolon",tk_peek(-1),parser_file);
+			(void) tk_consume(0);
+		}else
+			return tk_error("unexpected symbol",tk_peek(-1),parser_file);
+		break;
+	}case tk_getchar:
+	case tk_input:
+	case tk_putchar:
+	case tk_print:
+		*stmt = (node_stmt){.func_call={tk_peek(0)->type, tk_consume(0), (node_expr*)parser_arena.ptr, 0}};
+		if(!tk_peek(0) || tk_peek(0)->type != tk_oparent)
+			return tk_error("expected '('",tk_peek(-1),parser_file);
+		(void) tk_consume(0);
+		if(!parse_args(&stmt->func_call))
+			return false;
+		if(tk_peek(-1)->type != tk_cparent)
+			return tk_error("expected ')'",tk_peek(-1),parser_file);
+		if(!tk_peek(0) || tk_peek(0)->type != tk_semicolon)
+			return tk_error("expected semicolon",tk_peek(-1),parser_file);
+		(void) tk_consume(0);
+		break;
+	case tk_end_include:
+	case tk_include:{
+		file_t* new_file = find_file(tk_peek(0)->str,tk_peek(0)->strlen);
+		if(!new_file)
+			return tk_error("failed to find header file",tk_peek(0),parser_file);
+		parser_file = new_file;
+		(void) tk_consume(0);
+		return parse_stmt(stmt);
+		break;
+	case tk_ifdef:
+	case tk_ifndef:
+	case tk_macro:
+		(void) tk_consume(0);
+		while(tk_peek(0) && tk_peek(0)->type != tk_end_macro)
+			(void) tk_consume(0);
+		tk_consume(0);
+		return parse_stmt(stmt);
 		break;
 	}default:
-		return tk_error("not implemented yet",tk_peek(0),parser_file);
+		return tk_error("statement not implemented yet",tk_peek(0),parser_file);
 	}
 	return true;
 }
 
+// Free all resources the parser takes up
 void parser_free(node_prog* prog){
 	if(prog)
 		dynamic_array_free((dynamic_array_t*)prog);
 	arena_destroy(&parser_arena);
 }
 
+// Parse all tokens created during the tokenization phase,
+// as a node_prog dynamic array
 bool parse(node_prog* prog, file_t* file){
 	parser_file = file;
 	tk_index = 0;
-	if(!arena_setup(&parser_arena, 256*KB))
+	if(!arena_setup(&parser_arena, 64*KB))
 		parser_arena_error("parse");
 	*prog = (node_prog) NEW_DYNAMIC_ARRAY(sizeof(node_stmt));
 	while(tk_peek(0)){

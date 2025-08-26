@@ -10,6 +10,7 @@ const char* const ds_error_messages[] = {
 };
 #define DS_ERROR(_e) ds_error = (_e);
 
+// Allocates the necessary memory if necessary for 1 more element
 bool dynamic_array_alloc(dynamic_array_t* array){
 	if(!array){
 		DS_ERROR(DS_NULL_ERR);
@@ -17,6 +18,23 @@ bool dynamic_array_alloc(dynamic_array_t* array){
 	}
 	if(array->memsize - array->size < 1){
 		array->memsize = (array->memsize) ? DYNAMIC_ARRAY_GROW(array->memsize) : DYNAMIC_ARRAY_START;
+		array->data = (const char*) realloc((void*)array->data, array->memsize * array->data_size);
+		if(!array->data){
+			DS_ERROR(DS_MEM_ERR);
+			return false;
+		}
+	}
+	return true;
+}
+
+// Makes sure the dynamic array can hold (size) more elements
+bool dynamic_array_grow(dynamic_array_t* array, size_t size){
+	if(!array){
+		DS_ERROR(DS_NULL_ERR);
+		return false;
+	}
+	if(array->memsize - array->size < size){
+		array->memsize = size - (array->memsize - array->size);
 		array->data = (const char*) realloc((void*)array->data, array->memsize * array->data_size);
 		if(!array->data){
 			DS_ERROR(DS_MEM_ERR);
@@ -112,7 +130,7 @@ bool hashtable_set(hashtable_t* ht, const void* data){
 		DS_ERROR(DS_NULL_ERR);
 		return false;
 	}
-	size_t hash = ((ht->hashing_func) ? ht->hashing_func(data) : (size_t) *((unsigned char*)data));
+	size_t hash = ((ht->hashing_func) ? ht->hashing_func(data) : (size_t) *((uint8_t*)data));
 	hash %= ht->set_count;
 	if(hash >= ht->set_count){
 		DS_ERROR(DS_INDEX_ERR);
@@ -130,13 +148,37 @@ hashset_t* hashtable_get(hashtable_t* ht, const void* key){
 		DS_ERROR(DS_NULL_ERR);
 		return NULL;
 	}
-	size_t hash = ((ht->hashing_func) ? ht->hashing_func(key) : (size_t) *((unsigned char*)key));
+	size_t hash = ((ht->hashing_func) ? ht->hashing_func(key) : (size_t) *((uint8_t*)key));
+	if(ht->sets == NULL)
+		return NULL;
 	hash %= ht->set_count;
 	return &ht->sets[hash];
 }
 
 void* hashset_get(hashset_t* hs, size_t at){
+	if(!hs){
+		DS_ERROR(DS_NULL_ERR);
+		return NULL;
+	}
 	return (void*) (hs->pairs + hs->data_size * at);
+}
+
+void* hashtable_find(hashtable_t* ht, const void* key){
+	if(!ht){
+		DS_ERROR(DS_NULL_ERR);
+		return NULL;
+	}
+	hashset_t* hs = hashtable_get(ht,key);
+	if(!hs){
+		DS_ERROR(DS_NULL_ERR);
+		return NULL;
+	}
+	void* result = NULL;
+	for(size_t i = 0; i < hs->size; i++){
+		if(ht->cmp_func ? ht->cmp_func(key, (const void*)hashset_get(hs, i)) : (*(uint8_t*)key == *(uint8_t*)hashset_get(hs, i)))
+			result = hashset_get(hs, i);
+	}
+	return result;
 }
 
 void hashtable_parse(hashtable_t* ht, void (*parse_func)(void*, void*), void* args){

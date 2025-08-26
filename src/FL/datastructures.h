@@ -33,6 +33,7 @@ typedef struct {
 #define DYNAMIC_ARRAY_START 16
 
 bool dynamic_array_alloc(dynamic_array_t*);
+bool dynamic_array_grow(dynamic_array_t*,size_t);
 bool dynamic_array_pushback(dynamic_array_t*,const void*);
 bool dynamic_array_push(dynamic_array_t*,const void*,size_t);
 void dynamic_array_popback(dynamic_array_t*);
@@ -50,6 +51,14 @@ typedef struct {
 	// returns the index of the set the pair belongs to
 	// IF NULL, will default to using first byte as the index
 	size_t (*hashing_func)(const void*);
+
+	// Comparison function
+	// const void* : pointer to first pair
+	// const void* : pointer to second pair
+	// returns true if they have the same key
+	// returns false if they have different keys
+	// IF NULL, will default to comparing first bytes of both pairs
+	bool (*cmp_func)(const void*, const void*);
 } hashtable_t;
 
 #define NEW_HASHTABLE(_sz,_pair_sz) {NULL,0,(_sz),(_pair_sz),NULL}
@@ -60,6 +69,8 @@ bool hashtable_setup(hashtable_t*,size_t);
 bool hashtable_grow(hashtable_t*,size_t);
 bool hashtable_set(hashtable_t*,const void*);
 hashset_t* hashtable_get(hashtable_t*,const void*);
+void* hashset_get(hashset_t*,size_t);
+void* hashtable_find(hashtable_t*,const void*);
 void hashtable_parse(hashtable_t*,void (*)(void*,void*),void*);
 void hashtable_free(hashtable_t*);
 

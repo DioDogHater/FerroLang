@@ -1,7 +1,7 @@
 #ifndef FERRO_TEXT_COLOR_H
 #define FERRO_TEXT_COLOR_H
 
-// Header to implement
+// Header to implement text styling in a OS specific way (fuck windows)
 
 #if defined(__linux__) || defined(__unix__)
 
@@ -24,6 +24,16 @@
 #define WHITE_BG SET_ATTR(47)
 #define BOLD SET_ATTR(1)
 #define ITALIC SET_ATTR(2)
+#define NOT_BOLD SET_ATTR(22)
+#define NOT_ITALIC NOT_BOLD
+#define UNDERLINED SET_ATTR(4)
+#define NOT_UNDERLINED SET_ATTR(24)
+#define BLINKING SET_ATTR(5)
+#define NOT_BLINKING SET_ATTR(25)
+#define REVERSED SET_ATTR(7)
+#define NOT_REVERSED SET_ATTR(27)
+#define STRIKE_THROUGH SET_ATTR(9)
+#define NOT_STRIKE_THROUGH SET_ATTR(29)
 #define DEFAULT_FG SET_ATTR(39)
 #define DEFAULT_BG SET_ATTR(49)
 #define RESET_ATTR SET_ATTR(0)
