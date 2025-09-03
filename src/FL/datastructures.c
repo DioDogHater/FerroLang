@@ -68,8 +68,16 @@ bool dynamic_array_push(dynamic_array_t* array, const void* data, size_t at){
 		return false;
 	}if(at == array->size)
 		return dynamic_array_pushback(array, data);
-	memcpy((void*)(array->data+(at+1)*array->data_size),(void*)(array->data+at*array->data_size),(array->size-at)*array->data_size);
-	memcpy((void*)(array->data+at*array->data_size),data,array->data_size);
+	memcpy(
+		(void*)(array->data+(at+1)*array->data_size),
+		(void*)(array->data+at*array->data_size),
+		(array->size-at)*array->data_size
+	);
+	memcpy(
+		(void*)(array->data+at*array->data_size),
+		data,
+		array->data_size
+	);
 	return true;
 }
 
@@ -86,7 +94,11 @@ bool dynamic_array_pop(dynamic_array_t* array, size_t at){
 		DS_ERROR(DS_INDEX_ERR);
 		return false;
 	}
-	memcpy((void*)(array->data+(at)*array->data_size),(void*)(array->data+(at+1)*array->data_size),(array->size-at-1)*array->data_size);
+	memcpy(
+		(void*)(array->data+(at)*array->data_size),
+		(void*)(array->data+(at+1)*array->data_size),
+		(array->size-at-1)*array->data_size
+	);
 	array->size--;
 	return true;
 }
@@ -121,6 +133,14 @@ bool hashtable_grow(hashtable_t* ht, size_t pair_size){
 	if(ht->set_count - start_size > 0){
 		for(size_t i = start_size; i < ht->set_count; i++)
 			ht->sets[i] = (hashset_t) NEW_DYNAMIC_ARRAY(pair_size);
+		for(size_t i = 0; i < start_size; i++){
+			for(size_t j = ht->sets[i].size; j < ~0; j--){
+				void* pair = hashset_get(&ht->sets[i], j);
+				ht->sets[i].size--;
+				if(!hashtable_set(ht, pair))
+					return false;
+			}
+		}
 	}
 	return true;
 }
@@ -187,7 +207,7 @@ void hashtable_parse(hashtable_t* ht, void (*parse_func)(void*, void*), void* ar
 	for(size_t i = 0; i < ht->set_count; i++){
 		hashset_t* hs = &ht->sets[i];
 		for(size_t j = 0; j < hs->size; j++)
-			parse_func(hashset_get(hs, j),args);
+			parse_func(hashset_get(hs, j), args);
 	}
 }
 

@@ -14,7 +14,7 @@ add_library(FL STATIC
 )
 
 # FerroLang interpreter
-add_executable(ferro_interpreter src/interpreter.c)
+add_executable(ferro_interpreter src/interpreter/interpreter.c)
 target_link_libraries(ferro_interpreter FL)
 
 # FerroLang compiler

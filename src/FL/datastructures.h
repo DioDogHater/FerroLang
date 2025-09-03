@@ -61,7 +61,7 @@ typedef struct {
 	bool (*cmp_func)(const void*, const void*);
 } hashtable_t;
 
-#define NEW_HASHTABLE(_sz,_pair_sz) {NULL,0,(_sz),(_pair_sz),NULL}
+#define NEW_HASHTABLE(_sz) {NULL,0,(_sz),NULL,NULL}
 #define HASHTABLE_GROW(x) (x) * 2
 #define HASHTABLE_START 8
 

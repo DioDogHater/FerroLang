@@ -1,10 +1,13 @@
-#include "FL/filemanager.h"
-#include "FL/textstyle.h"
-#include "FL/tokenizer.h"
-#include "FL/parser.h"
+#include "../FL/filemanager.h"
+#include "../FL/textstyle.h"
+#include "../FL/tokenizer.h"
+#include "../FL/parser.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "variables.h"
 
 #define FERRO_DEBUG
 
@@ -23,7 +26,7 @@ static void show_usage(const char* msg){
 
 static file_t main_file = {NULL, NULL, 0};
 
-static bool parse_interpreter_args(int argc, char* argv[]){
+static bool init_interpreter(int argc, char* argv[]){
 	if(argc < 2)
 		show_usage("Missing input file.");
 
@@ -74,7 +77,7 @@ static void cleanup(node_prog* prog){
 }
 
 int main(int argc, char* argv[]){
-	if(!parse_interpreter_args(argc, argv)){
+	if(!init_interpreter(argc, argv)){
 		cleanup(NULL);
 		return EXIT_FAILURE;
 	}
